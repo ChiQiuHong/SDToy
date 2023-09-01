@@ -21,6 +21,6 @@ def TestUNetModel():
     text_embeddings = torch.randn(1, 77, 768).cuda()
     timestamp = torch.tensor([0]).cuda()
 
-    unet(latent, timestamp, text_embeddings)
+    output = unet(latent, timestamp, text_embeddings)
 
-    # print(output.shape)
+    print(output.shape)
