@@ -236,24 +236,24 @@ class UNetModel(nn.Module):
     """
     def __init__(
             self,
-            in_channels=4,
-            model_channels=320,
-            out_channels=4,
-            num_res_blocks=2,
-            attention_resolutions=[4, 2, 1],
+            in_channels,
+            model_channels,
+            out_channels,
+            num_res_blocks,
+            attention_resolutions,
             dropout=0,
-            channel_mult=[1, 2, 4, 4],
+            channel_mult=[1, 2, 4, 8],
             conv_resample=True,
             dims=2,
-            use_checkpoint=True,
-            num_heads=8,
+            use_checkpoint=False,
+            num_heads=-1,
             num_head_channels=-1,
             use_scale_shift_norm=False,
             resblock_updown=False,
             use_new_attention_order=False,
-            use_spatial_transformer=True,
+            use_spatial_transformer=False,
             transformer_depth=1,
-            context_dim=768,
+            context_dim=None,
             num_attention_blocks=None,
             disable_middle_self_attn=False,
             use_linear_in_transformer=False,
@@ -424,9 +424,7 @@ class UNetModel(nn.Module):
                     out_ch = ch
                     # 添加 Upsample 模块
                     layers.append(
-                        TimestepEmbedSequential(
-                            Upsample(ch, conv_resample, dims=dims, out_channels=out_ch)
-                        )
+                        Upsample(ch, conv_resample, dims=dims, out_channels=out_ch)
                     )
                     ds //= 2
 

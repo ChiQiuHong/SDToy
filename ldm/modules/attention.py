@@ -171,7 +171,7 @@ class SpatialTransformer(nn.Module):
                                      stride=1,
                                      padding=0)
         else:
-            self.proj_in = nn.linear(in_channels, inner_dim)
+            self.proj_in = nn.Linear(in_channels, inner_dim)
 
         self.transformer_blocks = nn.ModuleList(
             [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d],
@@ -186,7 +186,7 @@ class SpatialTransformer(nn.Module):
                                         stride=1,
                                         padding=0))
         else:
-            self.proj_out = zero_module(nn.linear(in_channels, inner_dim))
+            self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
         self.use_linear = use_linear
     
     def forward(self, x, context=None):

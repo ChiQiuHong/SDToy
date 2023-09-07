@@ -4,10 +4,37 @@ import numpy as np
 import PIL
 from PIL import Image
 from scipy import integrate
+from transformers import CLIPTextModel, CLIPTokenizer
 
 
 from ldm.modules.diffusionmodules.openaimodel import UNetModel
 from ldm.models.autoencoder import AutoencoderKL
+
+#文本编码
+def prompts_embedding(prompts):
+    # 加载编码模型
+    tokenizer = CLIPTokenizer.from_pretrained("./models/huggingface/openai/clip-vit-large-patch14")
+    text_encoder = CLIPTextModel.from_pretrained("./models/huggingface/openai/clip-vit-large-patch14")
+
+    #tokenizer.model_max_length -> 77
+    text_input = tokenizer(prompts, padding="max_length", max_length=tokenizer.model_max_length, truncation=True, return_tensors="pt")
+
+    text_embeddings = text_encoder(text_input.input_ids) 
+    text_embeddings = text_embeddings[0]  #(1, 77, 768)
+
+    return text_embeddings
+
+
+def test_embedding():
+    prompts = ["a photograph of an astronaut riding a horse"]
+    text_embeddings = prompts_embedding(prompts)
+    
+
+    uncond_prompts = [""]
+    uncond_embeddings = prompts_embedding(uncond_prompts)
+
+    print("text_embeddings.shape",text_embeddings.shape)
+    print("text_embeddings.shape",uncond_embeddings.shape)
 
 
 #VAE模型
@@ -73,19 +100,31 @@ def load_unet(ckpt):
             "attention_resolutions": [ 4, 2, 1 ],
             "num_res_blocks": 2,
             "channel_mult": [ 1, 2, 4, 4 ],
-            "num_head_channels": 64,
+            "num_heads": 8,
             "use_spatial_transformer": True,
             "transformer_depth": 1,
-            "context_dim": 1024,
+            "context_dim": 768,
             "use_checkpoint": True,
     }
     unet = UNetModel(**unet_init_config)
     pl_sd = torch.load(ckpt, map_location="cpu")
     sd = pl_sd["state_dict"]
 
+
+
     model_dict = unet.state_dict()
     for k, v in model_dict.items():
         model_dict[k] = sd["model.diffusion_model."+k]
+
+    # with open('model_state_dict.txt', 'w') as f:
+    #     f.write("Model's state_dict:\n")
+    #     for param_tensor in model_dict:
+    #         f.write(f"{param_tensor} \t {model_dict[param_tensor].size()}\n")
+
+    # with open('checkpoint_state_dict.txt', 'w') as f:
+    #     f.write("Checkpoint's state_dict:\n")
+    #     for param_tensor in sd:
+    #         f.write(f"{param_tensor} \t {sd[param_tensor].size()}\n")
 
     unet.load_state_dict(model_dict, strict=False)
     unet.cuda()
@@ -160,50 +199,54 @@ class lms_scheduler():
         return prev_sample
 
 
-# def txt2img():
-#     #unet
-#     unet = UNetModel("models/Stable-diffusion/sd-v1-2.ckpt")
+def txt2img(ckpt):
+    #unet
+    unet = load_unet(ckpt)
 
-#     #调度器
-#     scheduler = lms_scheduler()
-#     scheduler.set_timesteps(100)
+    #调度器
+    scheduler = lms_scheduler()
+    scheduler.set_timesteps(100)
 
-#     #文本编码
-#     prompts = ["a photograph of an astronaut riding a horse"]
-#     text_embeddings = prompts_embedding(prompts)
-#     text_embeddings = text_embeddings.cuda()     #(1, 77, 768)
-#     uncond_prompts = [""]
-#     uncond_embeddings = prompts_embedding(uncond_prompts)
-#     uncond_embeddings = uncond_embeddings.cuda() #(1, 77, 768)
+    #文本编码
+    prompts = ["a photograph of an astronaut riding a horse"]
+    text_embeddings = prompts_embedding(prompts)
+    text_embeddings = text_embeddings.cuda()     #(1, 77, 768)
+    uncond_prompts = [""]
+    uncond_embeddings = prompts_embedding(uncond_prompts)
+    uncond_embeddings = uncond_embeddings.cuda() #(1, 77, 768)
 
-#     #初始隐变量
-#     latents = torch.randn( (1, 4, 64, 64))  #(1, 4, 64, 64)
-#     latents = latents * scheduler.sigmas[0]    #sigmas[0]=157.40723
-#     latents = latents.cuda()
+    #初始隐变量
+    latents = torch.randn( (1, 4, 64, 64))  #(1, 4, 64, 64)
+    latents = latents * scheduler.sigmas[0]    #sigmas[0]=157.40723
+    latents = latents.cuda()
 
-#     #循环步骤
-#     for i, t in enumerate(scheduler.timesteps):  #timesteps=[999.  988.90909091 978.81818182 ...100个
-#         latent_model_input = latents  #(1, 4, 64, 64)  
-#         sigma = scheduler.sigmas[i]
-#         latent_model_input = latent_model_input / ((sigma**2 + 1) ** 0.5)
-#         timestamp = torch.tensor([t]).cuda()
+    #循环步骤
+    for i, t in enumerate(scheduler.timesteps):  #timesteps=[999.  988.90909091 978.81818182 ...100个
+        latent_model_input = latents  #(1, 4, 64, 64)  
+        sigma = scheduler.sigmas[i]
+        latent_model_input = latent_model_input / ((sigma**2 + 1) ** 0.5)
+        timestamp = torch.tensor([t]).cuda()
 
-#         with torch.no_grad():  
-#             noise_pred_text = unet(latent_model_input, timestamp, text_embeddings)
-#             noise_pred_uncond = unet(latent_model_input, timestamp, uncond_embeddings)
-#             guidance_scale = 7.5 
-#             noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+        with torch.no_grad():  
+            noise_pred_text = unet(latent_model_input, timestamp, text_embeddings)
+            noise_pred_uncond = unet(latent_model_input, timestamp, uncond_embeddings)
+            guidance_scale = 7.5 
+            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-#             latents = scheduler.step(noise_pred, i, latents)
+            latents = scheduler.step(noise_pred, i, latents)
         
-#     vae = load_vae()
-#     latents = 1 / 0.18215 * latents
-#     image = vae.decode(latents.cpu())  #(1, 3, 512, 512)
-#     save_image(image,"txt2img.png")
+    vae = load_vae(ckpt)
+    latents = 1 / 0.18215 * latents
+    image = vae.decode(latents.cpu())  #(1, 3, 512, 512)
+    save_image(image,"output/txt2img.png")
 
 
 if __name__ == "__main__":
     
     # test_vae("models/Stable-diffusion/sd-v1-2.ckpt")
 
-    test_unet("models/Stable-diffusion/sd-v1-2.ckpt")
+    # test_unet("models/Stable-diffusion/sd-v1-2.ckpt")
+
+    # test_embedding()
+
+    txt2img("models/Stable-diffusion/sd-v1-2.ckpt")

@@ -1,5 +1,6 @@
 **/__pycache__
-
+*.ckpt
+*.safetensors
 *.egg-info/
-
-models/Stable-diffusion/
+/models/**/*
+/output/**

@@ -1,4 +1,4 @@
-
+soundFile
 pytorch-lightning==1.4.2
 torchmetrics==0.6
 omegaconf==2.1.1
