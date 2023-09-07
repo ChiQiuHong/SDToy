@@ -3,6 +3,20 @@ import torch
 import torch.nn as nn
 from einops import repeat
 
+def make_beta_schedule(n_timestep, linear_start=1e-4, linear_end=2e-2):
+    betas = (
+        torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_timestep) ** 2
+    )
+
+    return betas.numpy()
+
+
+def extract_into_tensor(a, t, x_shape):
+    b, *_ = t.shape
+    # 沿着a的最后一个维度（-1表示最后一个维度）选择元素，其索引由t给出。
+    out = a.gather(-1, t)
+    # 第一个维度是batch大小。其余的维度都被设置为1，维度数量由 x_shape 的长度减1决定。
+    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 def checkpoint(func, inputs, params, flag):
     """
@@ -147,6 +161,12 @@ def zero_module(module):
     for p in module.parameters():
         p.detach().zero_()
     return module
+
+
+def noise_like(shape, device, repeat=False):
+    repeat_noise = lambda: torch.randn((1, *shape[1:]), device=device).repeat(shape[0], *((1,) * (len(shape) - 1)))
+    noise = lambda: torch.randn(shape, device=device)
+    return repeat_noise() if repeat else noise()
 
 
 if __name__ == "__main__":

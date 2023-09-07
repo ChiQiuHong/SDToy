@@ -1,0 +1,7 @@
+model:
+  # base_learning_rate: 1.0e-4
+  target: ldm.models.diffusion.ddpm.DDPM
+  params:
+
+    unet_config:
+      target: ldm.modules.diffusionmodules.openaimodel.UNetModel
