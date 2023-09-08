@@ -16,18 +16,31 @@ from ldm.models.diffusion.ddim import DDIMSampler
 
 def load_model_from_config(config, ckpt, verbose=False):
     print(f"Loading model from {ckpt}")
-    # pl_sd = torch.load(ckpt, map_location="cpu")
-    # if "global_step" in pl_sd:
-    #     print(f"Global Step: {pl_sd['global_step']}")
-    # sd = pl_sd["state_dict"]
+    pl_sd = torch.load(ckpt, map_location="cpu")
+    if "global_step" in pl_sd:
+        print(f"Global Step: {pl_sd['global_step']}")
+    sd = pl_sd["state_dict"]
     model = instantiate_from_config(config.model)
-    # m, u = model.load_state_dict(sd, strict=False)
-    # if len(m) > 0 and verbose:
-    #     print("missing keys:")
-    #     print(m)
-    # if len(u) > 0 and verbose:
-    #     print("unexpected keys:")
-    #     print(u)
+
+    m, u = model.load_state_dict(sd, strict=False)
+    if len(m) > 0 and verbose:
+        print("missing keys:")
+        print(m)
+    if len(u) > 0 and verbose:
+        print("unexpected keys:")
+        print(u)
+
+    # model_dict = model.state_dict()
+
+    # with open('model_state_dict.txt', 'w') as f:
+    #     f.write("Model's state_dict:\n")
+    #     for param_tensor in model_dict:
+    #         f.write(f"{param_tensor} \t {model_dict[param_tensor].size()}\n")
+
+    # with open('checkpoint_state_dict.txt', 'w') as f:
+    #     f.write("Checkpoint's state_dict:\n")
+    #     for param_tensor in sd:
+    #         f.write(f"{param_tensor} \t {sd[param_tensor].size()}\n")
 
     model.cuda()
     model.eval()
@@ -97,7 +110,7 @@ def main():
     parser.add_argument(
         "--n_samples",
         type=int,
-        default=2,
+        default=1,
         help="how many samples to produce for each given prompt. A.k.a batch size",
     )
 
@@ -207,7 +220,7 @@ def main():
                                              unconditional_conditioning=uc,)
                     
                     x_samples = model.decode_first_stage(samples)
-                    x_samples = torch.clamp((x_samples + 1.0) / 2.0, min=0.0, max=0.0)
+                    x_samples = torch.clamp((x_samples + 1.0) / 2.0, min=0.0, max=1.0)
 
                     for x_sample in x_samples:
                         x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
